@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SidebarToggle } from "@/components/dashboard/sidebar-toggle";
 
 export function DashboardTopBar() {
   return (
@@ -12,6 +13,8 @@ export function DashboardTopBar() {
         </span>
         <span className="text-[15px] font-semibold">DevStash</span>
       </div>
+
+      <SidebarToggle />
 
       <div className="flex min-w-0 flex-1 justify-center">
         <div className="relative w-full max-w-md">

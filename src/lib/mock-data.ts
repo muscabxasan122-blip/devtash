@@ -670,6 +670,13 @@ export function getFavoriteCollections(): Collection[] {
   return MOCK_COLLECTIONS.filter((collection) => collection.isFavorite);
 }
 
+/** Collections ordered by most recently updated. */
+export function getRecentCollections(limit = 5): Collection[] {
+  return [...MOCK_COLLECTIONS]
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+    .slice(0, limit);
+}
+
 export function getRecentItems(limit = 5): Item[] {
   return MOCK_ITEMS.filter((item) => item.lastAccessedAt !== null)
     .sort((a, b) => (a.lastAccessedAt! < b.lastAccessedAt! ? 1 : -1))
