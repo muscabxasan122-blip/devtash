@@ -1746,3 +1746,7 @@ It is making a developer's accumulated knowledge portable, searchable,
 reusable, and available to both the developer and their AI tools.
 
 DevStash --- Your developer memory layer.
+
+
+## **Design Reference**
+See `context/screenshots/dashboard-ui-drawer.png` and `context/screenshots/dashboard-ui-main.png` for the main dashboard design. It does not have to be pixel perfect. Use it as a base.
