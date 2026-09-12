@@ -2,12 +2,8 @@ import { FolderHeart, FolderOpen, Layers, Star, type LucideIcon } from "lucide-r
 
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  getFavoriteCollections,
-  getFavoriteItems,
-  MOCK_COLLECTIONS,
-  MOCK_ITEMS,
-} from "@/lib/mock-data";
+import { getCollectionStats } from "@/lib/db/collections";
+import { getFavoriteItems, MOCK_ITEMS } from "@/lib/mock-data";
 
 interface Stat {
   label: string;
@@ -17,8 +13,15 @@ interface Stat {
   iconClassName: string;
 }
 
-/** Totals across the stash. Not in the reference screenshot — see the spec. */
-export function DashboardStats() {
+/**
+ * Totals across the stash. Not in the reference screenshot — see the spec.
+ *
+ * The collection tiles read from the database; the item tiles still come from
+ * `mock-data.ts` until a later feature migrates the item reads.
+ */
+export async function DashboardStats() {
+  const collections = await getCollectionStats();
+
   const stats: Stat[] = [
     {
       label: "Items",
@@ -28,7 +31,7 @@ export function DashboardStats() {
     },
     {
       label: "Collections",
-      value: MOCK_COLLECTIONS.length,
+      value: collections.total,
       icon: FolderOpen,
       iconClassName: "text-emerald-500",
     },
@@ -40,7 +43,7 @@ export function DashboardStats() {
     },
     {
       label: "Favorite Collections",
-      value: getFavoriteCollections().length,
+      value: collections.favorites,
       icon: FolderHeart,
       iconClassName: "text-pink-500",
     },

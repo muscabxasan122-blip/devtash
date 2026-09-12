@@ -20,6 +20,20 @@ import {
 
 import type { SystemItemType } from "@/lib/mock-data";
 
+/**
+ * Canonical display order for the system types. The icon row on a collection
+ * card follows it, and it breaks ties when two types are equally common.
+ */
+export const SYSTEM_ITEM_TYPE_ORDER: SystemItemType[] = [
+  "SNIPPET",
+  "PROMPT",
+  "COMMAND",
+  "NOTE",
+  "FILE",
+  "IMAGE",
+  "LINK",
+];
+
 export const ITEM_TYPE_ICONS: Record<SystemItemType, LucideIcon> = {
   SNIPPET: Code2,
   PROMPT: Sparkles,

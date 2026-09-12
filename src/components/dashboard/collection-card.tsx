@@ -10,23 +10,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  getCollectionAccentClass,
+  ITEM_TYPE_ACCENT_CLASSES,
   ITEM_TYPE_COLOR_CLASSES,
   ITEM_TYPE_ICONS,
 } from "@/lib/item-visuals";
-import {
-  getCollectionItemTypes,
-  getItemsByCollection,
-  type Collection,
-} from "@/lib/mock-data";
+import type { CollectionSummary } from "@/lib/db/collections";
 
 interface CollectionCardProps {
-  collection: Collection;
+  collection: CollectionSummary;
 }
 
 export function CollectionCard({ collection }: CollectionCardProps) {
-  const itemCount = getItemsByCollection(collection.id).length;
-  const itemTypes = getCollectionItemTypes(collection.id);
+  const { itemCount, types, accentType } = collection;
 
   return (
     <Link
@@ -37,7 +32,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
         size="sm"
         className={cn(
           "h-full border-l-4 transition-colors hover:bg-muted/40",
-          getCollectionAccentClass(collection.color),
+          accentType ? ITEM_TYPE_ACCENT_CLASSES[accentType] : "border-l-border",
         )}
       >
         <CardHeader>
@@ -56,19 +51,21 @@ export function CollectionCard({ collection }: CollectionCardProps) {
         </CardHeader>
 
         <CardContent className="flex flex-col gap-3">
-          <p className="line-clamp-2 text-[0.8rem] text-muted-foreground">
-            {collection.description}
-          </p>
-          {itemTypes.length > 0 && (
+          {collection.description && (
+            <p className="line-clamp-2 text-[0.8rem] text-muted-foreground">
+              {collection.description}
+            </p>
+          )}
+          {types.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="sr-only">
-                Contains: {itemTypes.map((type) => type.name).join(", ")}
+                Contains: {types.map((type) => type.name).join(", ")}
               </span>
-              {itemTypes.map((type) => {
+              {types.map((type) => {
                 const Icon = ITEM_TYPE_ICONS[type.systemKey];
                 return (
                   <Icon
-                    key={type.id}
+                    key={type.systemKey}
                     aria-hidden
                     className={cn(
                       "size-3.5",
