@@ -2,7 +2,7 @@
 
 <!-- feature name and description-->
 
-**Database — Prisma + Neon PostgreSQL.** Stand up the data layer: Neon serverless Postgres, Prisma ORM, the initial schema drawn from the draft models in `@context/project-overview.md`, the Auth.js/NextAuth models, and a first migration. Spec: `@context/feature/database-spec.md`.
+**Seed sample data.** Rewrite `prisma/seed.ts` to populate the development database with a demo user, the seven system item types, five collections and their items, so the dashboard has realistic data to read once it moves off `mock-data.ts`. Spec: `@context/feature/seed-spec.md`.
 
 # status
 
@@ -14,30 +14,26 @@ completed
 
 <!-- goals and requiremnets-->
 
-- Neon PostgreSQL (serverless), with the development branch in `DATABASE_URL`
-- Prisma ORM wired into the app, with a single shared client instance
-- Initial schema from the draft models: `User`, `Item`, `ItemType`, `Collection`, `ItemCollection`, `Tag`, `ItemTag`, plus the `Plan`, `ItemContentType` and `SystemItemType` enums
-- NextAuth models: `Account`, `Session`, `VerificationToken`
-- Indexes and cascade deletes as the draft specifies
-- A first migration, created with `prisma migrate dev` — never `db push`
+- One demo user: `demo@devstash.io`, "Demo User", `emailVerified` set, `plan: FREE`
+- The seven system item types as global rows (`userId` null, `isSystem` true)
+- Five collections from the spec: React Patterns, AI Workflows, DevOps, Terminal Commands, Design Resources
+- Items per the spec: 3 snippets, 3 prompts, 1 snippet + 1 command + 2 links, 4 commands, 4 links — 18 items
+- Real, working URLs on every link item
+- Tags, and the `ItemCollection` / `ItemTag` join rows
+- Idempotent: re-running must not duplicate rows
+- Run with `prisma db seed`; verify with `scripts/test-db.ts`
 
 # Notes
 
 <!-- any extra notes -->
 
-- References: `@context/feature/database-spec.md`, `@context/project-overview.md` (§16 draft models, §18 data-model decisions), `@context/coding-standards.md` (Database section).
-- **Decision — Prisma 7.** 2026-09-08: the user chose Prisma 7 deliberately, and the note in `project-overview.md` §"Prisma version note" about Prisma 8 being the current major is to be disregarded for this project. This bullet is the record that §-note asks for ("if the project deliberately stays on Prisma 7, document that decision in the repository"). Pin the major version in `package.json` so a later install can't drift onto 8.
-- `DATABASE_URL` is set in `.env` (git-ignored via `.gitignore:34` `.env*`) and points at the Neon **development** branch. The value lives only on the machine — never in the repo, and never in a committed example file.
-- The connection string is the **pooled** (`-pooler`) endpoint, and `prisma migrate dev` ran over it without trouble — Neon's pooler passes DDL through, so no direct/unpooled URL was needed. (Prisma 7 removed `directUrl` from the datasource block anyway.) `pg` warns that `sslmode=require` is currently treated as `verify-full` and that this changes in pg v9 — harmless today, worth revisiting on that upgrade.
-- Read the upgrade guide and quickstart the spec links before writing any code — Prisma 7 has breaking changes:
-  - https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
-  - https://www.prisma.io/docs/getting-started/prisma-orm/quickstart/prisma-postgres
-- The §16 schema is explicitly a **rough draft**. Validate relationships, indexes, enums, constraints and naming against the chosen Prisma version and the Auth.js Prisma adapter before migrating. The schema is expected to evolve.
-- **Unresolved design decision** carried over from §18: system item types can be seeded globally as immutable records, or copied into each user's account (`ItemType.userId` is nullable in the draft to allow both). Pick one before the first migration — it is awkward to change afterwards.
-- Ownership: every user-created row is scoped to its owner, and `userId` always comes from the server-side session, never from the client.
-- Always migrations, never `db push`. `DATABASE_URL` points at the Neon **development** branch; production is a separate branch, and deployments run `prisma migrate deploy`.
-- Secrets go in `.env` (git-ignored) — no connection strings in the repo.
-- Out of scope: switching the dashboard over to the database. `@src/lib/mock-data.ts` stays the UI's source until a later feature migrates the reads.
+- References: `@context/feature/seed-spec.md`, `@prisma/schema.prisma`, `@src/lib/mock-data.ts` (tone and shape of the sample data).
+- **Spec departure — no password.** 2026-09-09: the spec asks for a bcryptjs-hashed password (12 rounds) on the demo user, but `User` has no `password` field and the auth plan is NextAuth v5 with Email (magic-link) + GitHub — neither uses one. Decided with the user to skip it rather than add a dead column and a dependency. Revisit only if credentials auth is ever added.
+- **Spec departure — `isPro`.** The spec's `isPro: false` maps onto the schema's `plan: FREE`; there is no `isPro` column.
+- **Spec departure — type names.** The spec's table lists lowercase singular names (`snippet`) and the icons `Code` / `Link`. The seeded rows keep the plural title-case names (`Snippets`) and `Code2` / `Link2`, because those are the sidebar's labels and they must match `MOCK_ITEM_TYPES` and `src/lib/item-visuals.ts`. Confirmed with the user 2026-09-09.
+- **Schema gap — collections have no colour.** `MOCK_COLLECTIONS` carries a `color` hex that drives the card's left accent border via `getCollectionAccentClass()`, but `Collection` has no such column. Seeded collections will fall back to the neutral border until a migration adds it.
+- Idempotency: system types upsert on `systemKey`; the user upserts on `email`; collections, tags and items are keyed on the composite uniques that exist, so re-running the seed converges rather than duplicating.
+- Out of scope: pointing the dashboard at the database. `@src/lib/mock-data.ts` stays the UI's source until a later feature migrates the reads.
 
 # History
 
@@ -54,5 +50,6 @@ completed
 - 2026-09-08 — Branch `feature/database`: **Database — Prisma + Neon PostgreSQL.** Installed Prisma **7.10.0** with `--save-exact` (`prisma`, `@prisma/client`, `@prisma/adapter-pg`, plus `dotenv`) so an install can't drift onto 8 — which is still only at `8.0.0-rc.13`, so `latest` would have pulled a release candidate. Prisma 7's breaking changes drove the layout: the `prisma-client` generator replaces `prisma-client-js` and `output` is now required (generated to `src/generated/prisma`, git-ignored and rebuilt by a `postinstall` script, and excluded from ESLint); the datasource URL moved out of the `datasource` block into a root `prisma.config.ts`, which also has to `import "dotenv/config"` itself because Prisma 7 no longer loads `.env`; and a driver adapter is now mandatory, so `src/lib/prisma.ts` wraps `PrismaPg` and caches the client on `globalThis` outside production to survive hot reload. `prisma/schema.prisma` holds the 7 app models from §16 (`User`, `Item`, `ItemType`, `Collection`, `ItemCollection`, `Tag`, `ItemTag`) plus the Auth.js models (`Account`, `Session`, `VerificationToken`) and the three enums — 10 tables, 23 indexes, 10 cascade deletes. Three deliberate changes to the draft: `Item.itemType` is `onDelete: Restrict` rather than Cascade (cascading from a *type* would silently delete every item of that type), `ItemType.systemKey` is `@@unique` because system types are seeded once globally with a null `userId` (settling the §18 open question in favour of shared immutable records rather than per-user copies), and `User` gained `emailVerified` for the Auth.js adapter. First migration `20260908103405_init` created with `migrate dev` and applied to the Neon development branch — never `db push`. Verified against the live database: all 10 tables present, create/read across `User`/`ItemType`/`Item` works, enums round-trip, and deleting a user cascades its items away; test rows cleaned up, database left empty. Lint and build pass; no `"type": "module"` was needed in `package.json` — Next.js consumes the ESM client as-is. **Completed.**
 - 2026-09-08 — Branch `feature/seed-item-types`: **Seed the system item types.** Added `prisma/seed.ts` seeding the seven system types as global rows (`userId` null, `isSystem` true) with the same `icon` (Lucide component name) and `color` (hex) values as `MOCK_ITEM_TYPES`, so the database and the dashboard's `item-visuals.ts` maps stay in agreement. Idempotent — it upserts on the unique `systemKey`, verified by running it twice and confirming 7 rows, all global. Prisma 7 removed automatic seeding, so the command is registered as `migrations.seed` in `prisma.config.ts` and run explicitly with `prisma db seed`; `tsx` became a real devDependency, having previously only resolved from a parent directory's `node_modules`. Lint and build pass. **Completed.**
 - 2026-09-09 — Branch `chore/test-db-script`: **Database connectivity check.** Added `scripts/test-db.ts`, run with `npx tsx scripts/test-db.ts`. It verifies `DATABASE_URL` is set, that Postgres answers `SELECT version()`, that the migrated tables exist (row counts across `User`, `Item`, `ItemType`, `Collection`, `Tag`), and that the seven system item types from `prisma/seed.ts` are present — warning to re-run `prisma db seed` if they are not. No install was needed: `dotenv` and `tsx` were already devDependencies from the Prisma 7 work. The script follows `prisma/seed.ts` rather than `src/lib/prisma.ts` — it imports the generated client by relative path instead of the `@/` alias and pulls in `dotenv/config` itself, since neither Prisma 7 nor `tsx` loads `.env`. It logs only the connection's host, never the credentialed URL. Verified against the Neon development branch: PostgreSQL 18.6, 7/7 system types, every other table empty. Build passes. **Completed.**
+- 2026-09-12 — Branch `feature/seed-sample-data`: **Seed sample data.** Rewrote `prisma/seed.ts` (706 lines) to populate the development database with the demo user `demo@devstash.io`, the seven system item types, and the five collections and eighteen items from `context/feature/seed-spec.md` — React Patterns (3), AI Workflows (3), DevOps (4), Terminal Commands (4), Design Resources (4) — plus 30 tags and every `ItemCollection` / `ItemTag` join row, with real working URLs on the link items. Three deliberate spec departures, all recorded above: no password column, `plan: FREE` in place of `isPro: false`, and plural title-case type names (`Snippets`, `Code2` / `Link2`) so the rows keep matching `MOCK_ITEM_TYPES` and `src/lib/item-visuals.ts`. Idempotency comes from upserting on whatever natural key the schema gives a row — `systemKey` for types, `email` for the user, `userId_name` for tags, the composite ids for the join tables — and, where there is none, from explicit readable ids (`col_react_patterns`, `item_use_debounce`) instead of generated cuids. Verified by running `prisma db seed` twice: counts identical both times (7 types, 5 collections, 18 items, 30 tags), confirmed independently with `scripts/test-db.ts`. One incident along the way: the Neon development branch had been replaced, so the old `DATABASE_URL` failed with `AuthenticationFailed` (P1000) until the user pasted the new pooled connection string (`ep-blue-bread-…`); migrations were already applied on that branch, so no `migrate deploy` was needed. Lint and build pass. **Completed.**
 - **Known gap:** `ItemType` in the schema has no `contentType`, `isPro` or `slug`, but `MOCK_ITEM_TYPES` has all three and the sidebar builds its `/items/{slug}` links from `slug`. These need adding (with a migration) before the UI can read item types from the database.
 - Next up: the `/items/*` and `/collections/*` routes.
