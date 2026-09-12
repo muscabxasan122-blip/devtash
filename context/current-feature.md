@@ -2,7 +2,7 @@
 
 <!-- feature name and description-->
 
-**Seed sample data.** Rewrite `prisma/seed.ts` to populate the development database with a demo user, the seven system item types, five collections and their items, so the dashboard has realistic data to read once it moves off `mock-data.ts`. Spec: `@context/feature/seed-spec.md`.
+**Dashboard collections from the database.** Replace the mock data behind the dashboard's *Recent Collections* grid with real rows from Neon via Prisma. Same six cards, same design — only the source changes. The item sections below the grid stay on `mock-data.ts` for now. Spec: `@context/feature/dashboard-collections-spec.md`.
 
 # status
 
@@ -14,26 +14,27 @@ completed
 
 <!-- goals and requiremnets-->
 
-- One demo user: `demo@devstash.io`, "Demo User", `emailVerified` set, `plan: FREE`
-- The seven system item types as global rows (`userId` null, `isSystem` true)
-- Five collections from the spec: React Patterns, AI Workflows, DevOps, Terminal Commands, Design Resources
-- Items per the spec: 3 snippets, 3 prompts, 1 snippet + 1 command + 2 links, 4 commands, 4 links — 18 items
-- Real, working URLs on every link item
-- Tags, and the `ItemCollection` / `ItemTag` join rows
-- Idempotent: re-running must not duplicate rows
-- Run with `prisma db seed`; verify with `scripts/test-db.ts`
+- New `src/lib/db/collections.ts` holding the collection fetch functions
+- `src/app/dashboard/page.tsx` awaits the fetch directly as a server component — no client fetching, no API route
+- One query for the whole grid: each collection returned with its item count and the distinct item types it contains, so `CollectionCard` stops calling `getItemsByCollection()` / `getCollectionItemTypes()` per card (six cards would otherwise mean thirteen round trips)
+- Card's left accent border derived from the collection's **most-used item type**, replacing the `color` hex lookup
+- The row of small type icons on each card comes from the types actually present in that collection
+- Ordered by `updatedAt` desc, capped at 6; favourites keep their star
+- Collection stats updated: the *Collections* and *Favorite Collections* tiles in `dashboard-stats.tsx` read from the database
+- Design unchanged — `collection-card.tsx` keeps its markup and classes
+- An empty state when the user has no collections
 
 # Notes
 
 <!-- any extra notes -->
 
-- References: `@context/feature/seed-spec.md`, `@prisma/schema.prisma`, `@src/lib/mock-data.ts` (tone and shape of the sample data).
-- **Spec departure — no password.** 2026-09-09: the spec asks for a bcryptjs-hashed password (12 rounds) on the demo user, but `User` has no `password` field and the auth plan is NextAuth v5 with Email (magic-link) + GitHub — neither uses one. Decided with the user to skip it rather than add a dead column and a dependency. Revisit only if credentials auth is ever added.
-- **Spec departure — `isPro`.** The spec's `isPro: false` maps onto the schema's `plan: FREE`; there is no `isPro` column.
-- **Spec departure — type names.** The spec's table lists lowercase singular names (`snippet`) and the icons `Code` / `Link`. The seeded rows keep the plural title-case names (`Snippets`) and `Code2` / `Link2`, because those are the sidebar's labels and they must match `MOCK_ITEM_TYPES` and `src/lib/item-visuals.ts`. Confirmed with the user 2026-09-09.
-- **Schema gap — collections have no colour.** `MOCK_COLLECTIONS` carries a `color` hex that drives the card's left accent border via `getCollectionAccentClass()`, but `Collection` has no such column. Seeded collections will fall back to the neutral border until a migration adds it.
-- Idempotency: system types upsert on `systemKey`; the user upserts on `email`; collections, tags and items are keyed on the composite uniques that exist, so re-running the seed converges rather than duplicating.
-- Out of scope: pointing the dashboard at the database. `@src/lib/mock-data.ts` stays the UI's source until a later feature migrates the reads.
+- References: `@context/feature/dashboard-collections-spec.md`, `@context/screenshots/dashboard-ui-main.png`, `@prisma/schema.prisma`.
+- **No session yet.** NextAuth v5 isn't in place, so the queries have no user to scope to. Resolve the seeded demo user by email (`demo@devstash.io`) in one place in `src/lib/db/collections.ts`, marked as temporary, and swap it for the session's user when auth lands.
+- **This closes the colour gap.** `Collection` has no `color` column, and the seed noted the cards would fall back to a neutral border. Deriving the accent from the most-used item type means no migration is needed: `ITEM_TYPE_ACCENT_CLASSES` in `src/lib/item-visuals.ts` already maps every `systemKey` to a `border-l-*` class. `getCollectionAccentClass(hex)` and `COLLECTION_ACCENT_BY_HEX` become dead once the last mock reader goes.
+- **Settled — ties.** "Most-used type" breaks ties on `SYSTEM_ITEM_TYPE_ORDER` (the canonical SNIPPET → LINK order, added to `item-visuals.ts`), so a card's accent is stable between renders. The same order sorts the icon row, which keeps it looking exactly as it did on mock data.
+- Use `src/lib/prisma.ts` (the `@/` alias, client cached on `globalThis`) — not the relative-path import that `prisma/seed.ts` and `scripts/test-db.ts` use, which exists only because neither runs through Next.
+- The dashboard page is currently statically prerendered; reading from the database will make `/dashboard` dynamic. Expected, but worth confirming in the build output.
+- Out of scope: the *Pinned* and *Recent Items* sections, the *Items* / *Favorite Items* stat tiles, and the `/collections/{id}` route the cards link to (still a 404).
 
 # History
 
@@ -51,5 +52,6 @@ completed
 - 2026-09-08 — Branch `feature/seed-item-types`: **Seed the system item types.** Added `prisma/seed.ts` seeding the seven system types as global rows (`userId` null, `isSystem` true) with the same `icon` (Lucide component name) and `color` (hex) values as `MOCK_ITEM_TYPES`, so the database and the dashboard's `item-visuals.ts` maps stay in agreement. Idempotent — it upserts on the unique `systemKey`, verified by running it twice and confirming 7 rows, all global. Prisma 7 removed automatic seeding, so the command is registered as `migrations.seed` in `prisma.config.ts` and run explicitly with `prisma db seed`; `tsx` became a real devDependency, having previously only resolved from a parent directory's `node_modules`. Lint and build pass. **Completed.**
 - 2026-09-09 — Branch `chore/test-db-script`: **Database connectivity check.** Added `scripts/test-db.ts`, run with `npx tsx scripts/test-db.ts`. It verifies `DATABASE_URL` is set, that Postgres answers `SELECT version()`, that the migrated tables exist (row counts across `User`, `Item`, `ItemType`, `Collection`, `Tag`), and that the seven system item types from `prisma/seed.ts` are present — warning to re-run `prisma db seed` if they are not. No install was needed: `dotenv` and `tsx` were already devDependencies from the Prisma 7 work. The script follows `prisma/seed.ts` rather than `src/lib/prisma.ts` — it imports the generated client by relative path instead of the `@/` alias and pulls in `dotenv/config` itself, since neither Prisma 7 nor `tsx` loads `.env`. It logs only the connection's host, never the credentialed URL. Verified against the Neon development branch: PostgreSQL 18.6, 7/7 system types, every other table empty. Build passes. **Completed.**
 - 2026-09-12 — Branch `feature/seed-sample-data`: **Seed sample data.** Rewrote `prisma/seed.ts` (706 lines) to populate the development database with the demo user `demo@devstash.io`, the seven system item types, and the five collections and eighteen items from `context/feature/seed-spec.md` — React Patterns (3), AI Workflows (3), DevOps (4), Terminal Commands (4), Design Resources (4) — plus 30 tags and every `ItemCollection` / `ItemTag` join row, with real working URLs on the link items. Three deliberate spec departures, all recorded above: no password column, `plan: FREE` in place of `isPro: false`, and plural title-case type names (`Snippets`, `Code2` / `Link2`) so the rows keep matching `MOCK_ITEM_TYPES` and `src/lib/item-visuals.ts`. Idempotency comes from upserting on whatever natural key the schema gives a row — `systemKey` for types, `email` for the user, `userId_name` for tags, the composite ids for the join tables — and, where there is none, from explicit readable ids (`col_react_patterns`, `item_use_debounce`) instead of generated cuids. Verified by running `prisma db seed` twice: counts identical both times (7 types, 5 collections, 18 items, 30 tags), confirmed independently with `scripts/test-db.ts`. One incident along the way: the Neon development branch had been replaced, so the old `DATABASE_URL` failed with `AuthenticationFailed` (P1000) until the user pasted the new pooled connection string (`ep-blue-bread-…`); migrations were already applied on that branch, so no `migrate deploy` was needed. Lint and build pass. **Completed.**
+- 2026-09-12 — Branch `feature/dashboard-collections`: **Dashboard collections from the database.** The *Recent Collections* grid now reads from Neon instead of `mock-data.ts`. Added `src/lib/db/collections.ts` with `getRecentCollections(limit)` and `getCollectionStats()`; `src/app/dashboard/page.tsx` became an async server component that awaits the first, and `dashboard-stats.tsx` an async one that awaits the second. `CollectionCard` now takes a `CollectionSummary` and renders it — it no longer looks anything up, so the grid costs one Prisma call however many cards it holds, rather than the two-lookups-per-card it did against the mocks. The card's accent border comes from the collection's most-used item type via `ITEM_TYPE_ACCENT_CLASSES`, which closes the "collections have no colour" schema gap without a migration: `getCollectionAccentClass()` and `COLLECTION_ACCENT_BY_HEX` are now dead code, left in place only because `mock-data.ts` still types a `color` on `Collection`. Two things the mocks didn't force: `ItemType.systemKey` is nullable, so items on a user's own custom type are counted in the total but skipped in the icon row and the accent (there is no icon or colour for them); and `Collection.description` is nullable, so the card drops the paragraph rather than rendering an empty one. Also added `SYSTEM_ITEM_TYPE_ORDER` to `item-visuals.ts` — it orders the icon row and breaks accent ties. The page needed `await connection()` (Next 16's documented opt-out, called inside the data layer): Prisma isn't `fetch`, so without it Next prerenders `/dashboard` at build time and bakes in whatever the database held. Build output confirms the change — `/dashboard` is now `ƒ (Dynamic)` rather than `○ (Static)`. Verified against the seeded database in a running dev server: five cards, ordered by `updatedAt`; AI Workflows violet/3 items/Prompts, Terminal Commands orange/4/Commands, React Patterns blue/3/Snippets, Design Resources emerald/4/Links, DevOps emerald/4/"Snippets, Commands, Links" — the mixed collection correctly picking LINK (2) over SNIPPET (1) and COMMAND (1); stat tiles read 5 Collections and 3 Favorite Collections against 15 Items and 5 Favorite Items still on mock data; and the empty state renders with the tiles at 0 when the query finds no user. Lint and build pass. **Completed.**
 - **Known gap:** `ItemType` in the schema has no `contentType`, `isPro` or `slug`, but `MOCK_ITEM_TYPES` has all three and the sidebar builds its `/items/{slug}` links from `slug`. These need adding (with a migration) before the UI can read item types from the database.
 - Next up: the `/items/*` and `/collections/*` routes.

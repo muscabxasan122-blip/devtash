@@ -6,11 +6,8 @@ import { CollectionCard } from "@/components/dashboard/collection-card";
 import { DashboardStats } from "@/components/dashboard/dashboard-stats";
 import { ItemRow } from "@/components/dashboard/item-row";
 import { SectionHeading } from "@/components/dashboard/section-heading";
-import {
-  getPinnedItems,
-  getRecentCollections,
-  getRecentItems,
-} from "@/lib/mock-data";
+import { getRecentCollections } from "@/lib/db/collections";
+import { getPinnedItems, getRecentItems } from "@/lib/mock-data";
 
 export const metadata: Metadata = {
   title: "Dashboard | DevStash",
@@ -19,8 +16,8 @@ export const metadata: Metadata = {
 const RECENT_COLLECTIONS_LIMIT = 6;
 const RECENT_ITEMS_LIMIT = 10;
 
-export default function DashboardPage() {
-  const recentCollections = getRecentCollections(RECENT_COLLECTIONS_LIMIT);
+export default async function DashboardPage() {
+  const recentCollections = await getRecentCollections(RECENT_COLLECTIONS_LIMIT);
   const pinnedItems = getPinnedItems();
   const recentItems = getRecentItems(RECENT_ITEMS_LIMIT);
 
@@ -47,11 +44,17 @@ export default function DashboardPage() {
             </Link>
           }
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {recentCollections.map((collection) => (
-            <CollectionCard key={collection.id} collection={collection} />
-          ))}
-        </div>
+        {recentCollections.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {recentCollections.map((collection) => (
+              <CollectionCard key={collection.id} collection={collection} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed p-6 text-center text-[0.8rem] text-muted-foreground">
+            No collections yet. Create one to start grouping your items.
+          </p>
+        )}
       </section>
 
       <section>
